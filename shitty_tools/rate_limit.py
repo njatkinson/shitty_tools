@@ -2,7 +2,7 @@ import time
 from functools import wraps
 from contextlib import contextmanager
 from Queue import Queue
-from threading import Thread
+import concurrent
 
 
 def construct_rate_limit_context(hz, slack = 1, rate_limit_queue_class = Queue):
@@ -69,8 +69,7 @@ def construct_rate_limit_context(hz, slack = 1, rate_limit_queue_class = Queue):
             time.sleep(sleep_time)
             action_queue.put(None)
 
-    wait_thread = Thread(target=wait)
-    wait_thread.daemon = True
+    wait_thread = concurrent.construct_daemon_thread(wait)
     wait_thread.start()
     for i in xrange(slack or 1):
         action_queue.put(None)
