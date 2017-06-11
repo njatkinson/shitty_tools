@@ -5,4 +5,6 @@ decorator suitable for use at high rates and multi-threaded or
 multi-process applications.
 * Concurrent: Provides functions to construct concurrent pipelines and
 loops.
-* Key-Value: TODO
+* Key-Value: Provides dictionary interfaces to various underlying data
+stores.
+* RPC: TODO
