@@ -39,3 +39,43 @@ result in an exception.
 * Doing something like this `d['foo'] = 'bar'; d['foo/bar'] = 'foobar'`
 will result in an exception as `foo` cannot be both a file and a
 directory.
+
+
+### Redis
+
+Offers the RedisDict object for interacting with a Redis database as if
+it were a dictionary. It requires a redis object to be passed in at
+instantiation.
+
+You may specify a key prefix to help keep your application keys separate
+from other keys in the Redis database. For example, if you set the key
+prefix to 'myapp:', on the client side nothing changes, you still access
+values by `redis_dict_object['some_key']` but on the server they are
+stored as `myapp:some_key`. When retrieving a list of keys from the
+server, the RedisDict instance will filter out any keys that do not
+start with the key prefix.
+
+The RedisDict object offers three expiration models--
+* Default-- no expiration. Does not set an expiration time when storing
+items.
+* Simple expiration-- when storing items (insert or update), they have a
+life span of `exp_time` in seconds.
+* Sliding expiration-- when storing items, they have a life span of
+`exp_time` in seconds. Each time the item is retrieved, the time to live
+for the object is extended by `exp_time`.
+
+
+### Tiered Storage
+
+Offers the TieredStorageDict for stacking dictionary-like key-value
+storage objects.
+
+At instantiation, it accepts a list of key-value
+store instances.
+
+Attempts to read start at the head of the storage
+backends list and iterate towards the tail of the list until either the
+item is found or the end of the list is reached, at which time a
+KeyError will be thrown. Writes to tiered storage will begin writing at
+the tail of the storage backend list and iterate towards the front of
+the list.

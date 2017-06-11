@@ -6,5 +6,5 @@ multi-process applications.
 * Concurrent: Provides functions to construct concurrent pipelines and
 loops.
 * Key-Value: Provides dictionary interfaces to various underlying data
-stores.
+stores including the file system and Redis.
 * RPC: TODO
