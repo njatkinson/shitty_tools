@@ -8,11 +8,12 @@ class MySqlDict(GenericSqlDict):
         metadata = MetaData()
         t_kv = Table(
             table_name, metadata,
-            Column('key', VARCHAR(key_length), nullable=False),
+            Column('label', VARCHAR(key_length), nullable=False),
             Column('sequence_number', BIGINT(30), primary_key=True),
-            Column('value', LONGBLOB),
+            Column('item', LONGBLOB),
             Column('is_deleted', TINYINT(1), nullable=False, server_default=text("'0'")),
             Column('created', TIMESTAMP, server_default=text("CURRENT_TIMESTAMP")),
-            Index('key_seq_uq', 'key', 'sequence_number', unique=True)
+            Index('key_seq_uq', 'label', 'sequence_number', unique=True),
+            Index('is_deleted_idx', 'is_deleted')
         )
         return t_kv
