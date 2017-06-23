@@ -6,7 +6,7 @@ from sqlalchemy import BigInteger, Column, DateTime, Index, Integer, MetaData, S
 from sqlalchemy.orm import sessionmaker, scoped_session
 
 
-class GenericSqlDict(object):
+class GenericSqlDict(MutableMapping):
     def __init__(self, connection_string, table_name, key_length = 255, engine_kwargs= {},
                  serializer = lambda x: x, deserializer = lambda x: x,
                  snapshot_time = None, prune_on_write = False):
