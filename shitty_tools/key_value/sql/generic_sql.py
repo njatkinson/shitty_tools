@@ -1,6 +1,5 @@
 import datetime
 from collections import MutableMapping
-from random import choice
 from sqlalchemy import create_engine, insert, select, desc, func, and_, alias
 from sqlalchemy import BigInteger, Column, DateTime, Index, Integer, MetaData, String, Table, text, LargeBinary
 from sqlalchemy.orm import sessionmaker, scoped_session
