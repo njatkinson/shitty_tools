@@ -1,7 +1,8 @@
 # Key-Value Stores
 
 All Key-Value stores in the module present essentially a dictionary-like
-interface. You should be able to use them just like dictionaries.
+interface. You should be able to use them just like dictionaries with the
+caveat that all keys and values should be strings.
 
 They are thread safe unless otherwise noted.
 
@@ -39,6 +40,53 @@ result in an exception.
 * Doing something like this `d['foo'] = 'bar'; d['foo/bar'] = 'foobar'`
 will result in an exception as `foo` cannot be both a file and a
 directory.
+
+
+### Flask
+
+Offers a Flask extension allowing you to expose a dict as REST API and a
+client to allow remote access to the API in dictionary format via
+FlaskKvDict.
+
+Example server:
+```
+>>> from shitty_tools.key_value import flask_kv
+>>> app = flask_kv.server.construct_kv_app(dict())
+>>> app.run(port = 5000)
+ * Running on http://127.0.0.1:5000/ (Press CTRL+C to quit)
+127.0.0.1 - - [29/Jun/2017 15:57:38] "POST /foo HTTP/1.1" 204 -
+127.0.0.1 - - [29/Jun/2017 15:57:41] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2017 15:57:43] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2017 15:57:43] "GET /foo HTTP/1.1" 200 -
+```
+
+Example client:
+```
+>>> from shitty_tools.key_value import flask_kv
+>>> client_dict = flask_kv.client.FlaskKvDict('http://127.0.0.1:5000')
+>>> client_dict['foo'] = 'bar'
+>>> client_dict.keys()
+['foo']
+>>> for k, v in client_dict.iteritems(): print k, v
+...
+foo bar
+```
+
+You can also use this with an existing application as a Flask extension.
+
+Example extension:
+```
+>>> from flask import Flask
+>>> from shitty_tools.key_value import flask_kv
+>>> app = Flask(__name__)
+>>> flask_kv.FlaskKv(app, dict(), url_prefix = '/kv')
+<flask.blueprints.Blueprint object at 0x0344FED0>
+>>> app.run()
+ * Running on http://127.0.0.1:5000/ (Press CTRL+C to quit)
+```
+
+Instantiation as a Flask extension returns the generated Flask blueprint
+so that you can modify it to include authorization, logging, etc.
 
 
 ### Redis
@@ -138,8 +186,6 @@ the `TieredStorageDict` with your read replica(s) wrapped in a `ReadOnlyDict`
 (and perhaps `RandomChoiceDict` if you want to balance your reads across multiple
 replicas without using HAProxy or proxysql) in front of SqlDicts pointing to a 
 single node.  
-
-
 
 
 ### Utility
