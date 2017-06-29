@@ -4,12 +4,10 @@ from collections import MutableMapping
 
 
 class FileSystemDict(MutableMapping):
-    def __init__(self, storage_path, scratch_path, serializer = lambda x: x, deserializer = lambda x: x):
+    def __init__(self, storage_path, scratch_path):
         '''
         :param storage_path: directory for storing data
         :param scratch_path: directory for staging writes
-        :param serializer: optional-- function that takes a value and converts it to string/bytes
-        :param deserializer: optional-- function that takes string/bytes and converts it to values
         '''
         self.storage_path = os.path.abspath(storage_path)
         self.scratch_path = os.path.abspath(scratch_path)
@@ -20,9 +18,6 @@ class FileSystemDict(MutableMapping):
             raise Exception('Storage path and scratch path must be on the same file system')
         if os.path.split(self.scratch_path)[0].startswith(self.storage_path):
             raise Exception('Scratch path must not be accessible from storage path')
-
-        self.serializer = serializer
-        self.deserializer = deserializer
 
 
     def _get_storage_key_path(self, key):
@@ -35,7 +30,7 @@ class FileSystemDict(MutableMapping):
     def __getitem__(self, key):
         try:
             with open(self._get_storage_key_path(key), 'r') as infile:
-                return self.deserializer(infile.read())
+                return infile.read()
         except IOError:
             raise KeyError(key)
 
@@ -44,7 +39,7 @@ class FileSystemDict(MutableMapping):
         destination_path = self._get_storage_key_path(key)
         scratch = tempfile.NamedTemporaryFile(mode='w', dir=self.scratch_path, delete=False)
         try:
-            scratch.write(self.serializer(value))
+            scratch.write(value)
         except:
             scratch.close()
             os.remove(scratch.name)

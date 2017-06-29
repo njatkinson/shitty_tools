@@ -1,13 +1,12 @@
 import datetime
 from collections import MutableMapping
-from sqlalchemy import create_engine, insert, select, desc, func, and_, alias
-from sqlalchemy import BigInteger, Column, DateTime, Index, Integer, MetaData, String, Table, text, LargeBinary
+from sqlalchemy import create_engine, insert, select, delete, desc, func, and_, alias
+from sqlalchemy import BigInteger, Column, DateTime, Index, Integer, MetaData, String, Table, LargeBinary
 from sqlalchemy.orm import sessionmaker, scoped_session
 
 
 class GenericSqlDict(MutableMapping):
     def __init__(self, connection_string, table_name, key_length = 255, engine_kwargs= {},
-                 serializer = lambda x: x, deserializer = lambda x: x,
                  snapshot_time = None, prune_on_write = False):
         write_engine = create_engine(connection_string, **engine_kwargs)
         self._kv_table = self._generate_kv_table_object(table_name, key_length)
@@ -15,11 +14,8 @@ class GenericSqlDict(MutableMapping):
             self._kv_table.create(bind = write_engine)
 
         self._get_session = self._construct_session_factory(write_engine)
-
-        self._serializer = serializer
-        self._deserializer = deserializer
-
-        # TODO: snapshots, prune on write
+        self._snapshot_time = snapshot_time
+        self._prune_on_write = prune_on_write
 
 
     def _construct_session_factory(self, engine):
@@ -28,7 +24,7 @@ class GenericSqlDict(MutableMapping):
 
 
     def _generate_kv_table_object(self, table_name, key_length):
-        # TODO: Rather than a global sequence number, do sequence number per key
+        # TODO: global sequence number or sequence number per key?
         metadata = MetaData()
         t_kv = Table(
             table_name, metadata,
@@ -45,21 +41,32 @@ class GenericSqlDict(MutableMapping):
 
     def _generate_insert_statement(self, key, value, is_deleted):
         return insert(self._kv_table, values = {'label': key,
-                                                'item': self._serializer(value),
+                                                'item': value,
                                                 'is_deleted': is_deleted})
 
 
     def _write(self, key, value, is_deleted):
+        if self._snapshot_time:
+            return
+        if self._prune_on_write:
+            delete_statement = delete(self._kv_table).where(key = key)
+        else:
+            delete_statement = None
         insert_statement = self._generate_insert_statement(key, value, is_deleted)
         with self._get_session().no_autoflush as session:
+            if delete_statement:
+                session.execute(delete_statement)
             session.execute(insert_statement)
             session.commit()
         session.close()
 
 
     def _generate_select_key_statement(self, key):
-        return select([self._kv_table.c.item, self._kv_table.c.is_deleted]).where(self._kv_table.c.label == key).\
+        sel_stmt = select([self._kv_table.c.item, self._kv_table.c.is_deleted]).where(self._kv_table.c.label == key).\
             order_by(desc(self._kv_table.c.sequence_number)).limit(1)
+        if self._snapshot_time:
+            sel_stmt = sel_stmt.where(self._kv_table.c.created <= self._snapshot_time)
+        return sel_stmt
 
 
     def _generate_select_all_keys_statement(self, count_only = False):
@@ -77,6 +84,8 @@ class GenericSqlDict(MutableMapping):
                                        rhs.c.sequence_number > lhs.c.sequence_number))).\
             where(and_(rhs.c.label.is_(None),
                        lhs.c.is_deleted == 0))
+        if self._snapshot_time:
+            select_statement= select_statement.where(lhs.c.created <= self._snapshot_time)
         return select_statement
 
 
