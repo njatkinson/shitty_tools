@@ -62,7 +62,8 @@ def create_attribute_associator(entity_id_col, eav_cls, eav_entity_id_col, eav_a
                                             eav_attr_col == attr_name),
                            uselist=False, lazy=lazy)
         def getter(self):
-            return getattr(self, obj_name).value
+            obj = getattr(self, obj_name)
+            return getattr(obj, value_col_name)
         def setter(self, value):
             obj = getattr(self, obj_name)
             if obj is None:
