@@ -19,6 +19,21 @@ class FileSystemDict(MutableMapping):
         if os.path.split(self.scratch_path)[0].startswith(self.storage_path):
             raise Exception('Scratch path must not be accessible from storage path')
 
+        try:
+            scratch_token = os.path.join(self.scratch_path, '.fsdict_token')
+            with open(scratch_token, 'rb') as infile:
+                infile.read()
+        except IOError:
+            try:
+                with open(scratch_token, 'wb') as scratch_token:
+                    scratch_token.write('token')
+            except:
+                # No scratch token found and none can be written. This could be a problem.
+                # But let's eat it for now in case of weird configuration.
+                pass
+        except:
+            raise Exception('Scratch path is no good')
+
 
     def _get_storage_key_path(self, key):
         key_path = os.path.abspath(os.path.join(self.storage_path, str(key)))
@@ -29,7 +44,7 @@ class FileSystemDict(MutableMapping):
 
     def __getitem__(self, key):
         try:
-            with open(self._get_storage_key_path(key), 'r') as infile:
+            with open(self._get_storage_key_path(key), 'rb') as infile:
                 return infile.read()
         except IOError:
             raise KeyError(key)
@@ -37,7 +52,7 @@ class FileSystemDict(MutableMapping):
 
     def __setitem__(self, key, value):
         destination_path = self._get_storage_key_path(key)
-        scratch = tempfile.NamedTemporaryFile(mode='w', dir=self.scratch_path, delete=False)
+        scratch = tempfile.NamedTemporaryFile(mode='wb', dir=self.scratch_path, delete=False)
         try:
             scratch.write(value)
         except:
@@ -70,7 +85,7 @@ class FileSystemDict(MutableMapping):
     def __iter__(self):
         for dirpath, dirnames, filenames in os.walk(self.storage_path):
             for filename in filenames:
-                yield os.path.join(dirpath, filename)
+                yield os.path.join(dirpath, filename).lstrip(self.storage_path)
 
 
     def __len__(self):
