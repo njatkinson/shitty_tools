@@ -89,6 +89,15 @@ Instantiation as a Flask extension returns the generated Flask blueprint
 so that you can modify it to include authorization, logging, etc.
 
 
+### HBase
+
+Preliminary support.
+
+Offers the HbaseDict object for interacting with an Hbase table as if
+it were a dictionary. It requires a happybase connection pool to be passed
+in at instantiation.
+
+
 ### Redis
 
 Offers the RedisDict object for interacting with a Redis database as if

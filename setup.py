@@ -4,7 +4,7 @@ setup(
     name = 'shitty_tools',
     packages = ['shitty_tools', 'shitty_tools.key_value', 'shitty_tools.key_value.sql',
                 'shitty_tools.key_value.flask_kv'],
-    version = '2017.07.05.0',
+    version = '2017.08.10.0',
     description = 'A collection of Python modules including tools for connection pools, entity-attribute-value tables, '
                   'key-value storage, and rate limiting.',
     author = 'Nate Atkinson',
