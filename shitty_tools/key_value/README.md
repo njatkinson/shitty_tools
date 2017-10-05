@@ -4,7 +4,8 @@ All Key-Value stores in the module present essentially a dictionary-like
 interface. You should be able to use them just like dictionaries with the
 caveat that all keys and values should be strings.
 
-They are thread safe unless otherwise noted.
+They all support reading and writing from multiple threads unless otherwise 
+noted.
 
 ## Notes
 
@@ -91,11 +92,18 @@ so that you can modify it to include authorization, logging, etc.
 
 ### HBase
 
-Preliminary support.
+**Experimental. In development.**
 
-Offers the HbaseDict object for interacting with an Hbase table as if
-it were a dictionary. It requires a happybase connection pool to be passed
-in at instantiation.
+Various HBase dict objects allowing one to interact with HBase.
+
+* HBaseRowDict-- Accepts a connection pool, table name, column family, 
+and row key. Provides dictionary access to columns within that row and 
+column family. Keyed on column name.
+* HBaseValueDict-- Accepts a connection pool, table name, and 
+column_family:column_name. Provides dictionary access to that column in 
+the table. Keyed on row key.
+
+Work in progress. See code.
 
 
 ### Redis
@@ -199,13 +207,19 @@ single node.
 
 ### Utility
 
+#### Random Choice 
+
+Provides `RandomChoiceDict` which wraps a list of dict instances. Any reads or writes
+are performed on a random instance from the list.
+
+
 #### Read Only and Write Only
 
 The `ReadOnlyDict` and `WriteOnlyDict` accept an instance of a dict and wrap it
 to prevent writing or reading. The `ReadOnlyDict` silently discards writes and 
 deletes. The `WriteOnlyDict` raises KeyError on any attempts to access keys, 
 reports a length of zero, and yields and empty set if you attempt to iterate it.
- 
+
 
 #### Serialized 
 
@@ -227,10 +241,20 @@ my_serialized_dict = SerializedDict(my_dict,
                                     value_deserialize = zlib.decompress)
 ```
 
-#### Random Choice 
 
-Provides `RandomChoiceDict` which wraps a list of dict instances. Any reads or writes
-are performed on a random instance from the list.
+#### Sharded
+
+Offers `ShardedDict` for balancing reads and writes against several
+dictionary-like key-value storage objects.
+
+At instantiation, it accepts a list of key-value store instances.
+
+Attempts to read and write keys are directed to key-value stores in the storage
+backend list based on the hash (zlib.adler32) of the key.
+
+Iterating through keys iterates through all keys in each underlying dictionary 
+and returns only those keys that match the appropriate hash modulo for each 
+dictionary. This can make key enumeration slow in certain cases.
 
 
 #### Tiered Storage
@@ -247,6 +271,34 @@ item is found or the end of the list is reached, at which time a
 KeyError will be thrown. Writes to tiered storage will begin writing at
 the tail of the storage backend list and iterate towards the front of
 the list.
+
+**Note:** Updating a value can be prone to race conditions in a threaded 
+environment. If a key-value pair already exists and one thread attempts to 
+read it at the same time that another thread is updating the value, the 
+reading thread may retrieve a "stale" value.
+
+
+#### Threaded Serial Access
+
+**Incomplete. Work in progress.**
+
+Offers `ThreadedSerialAccessDict` for ensuring that only one thread 
+reads or writes to the dict at any given time.
+
+At instantiation, it accepts a list of key-value store instances.
+
+Attempts to read and write create operation objects that are placed into a queue. 
+A single daemon thread (started at instantiation) reads the queue, performs 
+operations and places results into per-calling-thread response queues.
+
+**Notes:** 
+* Currently, write and delete operations are non-blocking. If you've queued 
+up several large or slow write operations and you want to ensure that they 
+complete before the application exit, call the `.join()` method of the 
+`operation_queue` attribute of the dict.
+* Currently, there is no error handling. If you try to access an a key that 
+ doesn't exist (KeyError) or the underlying dictionary throws a write error, 
+ the `TheadedSerialAccessDict` will be broken.
 
 
 ## Example

@@ -1,5 +1,9 @@
-from collections import MutableMapping
+from collections import MutableMapping, defaultdict
+from thread import get_ident
+from threading import Thread
 from random import choice
+from Queue import Queue
+from zlib import adler32
 
 
 class ReadOnlyDict(MutableMapping):
@@ -128,3 +132,83 @@ class TieredStorageDict(MutableMapping):
     def __len__(self):
         # Only get length from bottom layer
         return len(self.storage_backends[-1])
+
+
+class ShardedDict(MutableMapping):
+    def __init__(self, storage_backends):
+        '''
+        :param storage_backends: An indexable iterator that contains a list of storage backends with dictionary
+         interfaces. Items will be stored/retrieved as follows: storage_backends[adler32(key) % len(storage_backends)]
+        '''
+        self.storage_backends = storage_backends
+    def __getitem__(self, key):
+        return self.storage_backends[adler32(key) % len(self.storage_backends)][key]
+    def __setitem__(self, key, value):
+        self.storage_backends[adler32(key) % len(self.storage_backends)][key] = value
+    def __delitem__(self, key):
+        del(self.storage_backends[adler32(key) % len(self.storage_backends)][key])
+    def __iter__(self):
+        for i, storage_backend in enumerate(self.storage_backends):
+            for key in storage_backend:
+                if adler32(key) % len(self.storage_backends) == i:
+                    yield key
+    def __len__(self):
+        def backend_len((index, backend)):
+            return len([key for key in backend if adler32(key) % len(self.storage_backends) == index])
+        return sum(map(backend_len, enumerate(self.storage_backends)))
+
+
+class ThreadedSerialAccessDict(MutableMapping):
+    # TODO: Finish
+    def __init__(self, wrapped_dict):
+        self.operation_queue = Queue()
+        self.response_queue_dict = defaultdict(Queue)
+        self.wrapped_dict = wrapped_dict
+
+        def operate():
+            def _get(op, key, thread_id):
+                self.response_queue_dict[thread_id].put(wrapped_dict[key])
+            def _set(op, key, value):
+                wrapped_dict[key] = value
+            def _del(op, key):
+                del(wrapped_dict[key])
+            def _iter(op, thread_id):
+                self.response_queue_dict[thread_id].put(wrapped_dict.keys())
+            def _len(op, thread_id):
+                self.response_queue_dict[thread_id].put(len(wrapped_dict))
+            op_f_dict = {'get': _get,
+                         'set': _set,
+                         'del': _del,
+                         'iter': _iter,
+                         'len': _len
+                         }
+            while True:
+                message = self.operation_queue.get()
+                op_f_dict[message['op']](**message)
+                self.operation_queue.task_done()
+
+        self.operation_thread = Thread(target=operate)
+        self.operation_thread.daemon = True
+        self.operation_thread.start()
+
+
+    def __getitem__(self, key):
+        thread_id = get_ident()
+        response_queue = self.response_queue_dict[thread_id]
+        self.operation_queue.put({'op': 'get', 'key': key, 'thread_id': thread_id})
+        return response_queue.get()
+    def __setitem__(self, key, value):
+        self.operation_queue.put({'op': 'set', 'key': key, 'value': value})
+    def __delitem__(self, key):
+        self.operation_queue.put({'op': 'del', 'key': key})
+    def __iter__(self):
+        thread_id = get_ident()
+        response_queue = self.response_queue_dict[thread_id]
+        self.operation_queue.put({'op': 'iter', 'thread_id': thread_id})
+        for key in response_queue.get():
+            yield key
+    def __len__(self):
+        thread_id = get_ident()
+        response_queue = self.response_queue_dict[thread_id]
+        self.operation_queue.put({'op': 'len', 'thread_id': thread_id})
+        return response_queue.get()
